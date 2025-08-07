@@ -1,6 +1,12 @@
 package com.nemanjap.main
 
+import kotlinx.coroutines.runBlocking
+
 fun main() {
-    val user = User("", 17)
-    println(user.validate())
+    val userDto = UserDto("123", "Alice")
+    val mapper = UserDtoToUserMapper()
+    val user = runBlocking {
+        mapper.mappingObject(userDto)
+    }
+    println(user)
 }
