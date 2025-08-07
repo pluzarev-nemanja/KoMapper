@@ -1,9 +1,8 @@
 package com.nemanjap.main
 
 import com.nemanjap.annotations.MapTo
-import com.nemanjap.main.User
 
-@MapTo(User::class)
+@MapTo(User::class, suspendable = true, oneLineEnabled = true)
 data class UserDto(
     val id: String,
     val name: String
