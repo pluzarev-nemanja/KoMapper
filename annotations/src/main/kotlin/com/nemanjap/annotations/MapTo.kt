@@ -10,5 +10,6 @@ annotation class MapTo(
     val oneLineEnabled: Boolean = false,
     val sourceNullable: Boolean = false,
     val targetNullable: Boolean = false,
+    val isSingleton: Boolean = false,
     val propertyMaps: Array<PropertyMap> = []
 )

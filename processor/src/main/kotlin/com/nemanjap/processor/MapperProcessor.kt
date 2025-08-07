@@ -57,6 +57,9 @@ class MapperProcessor(
         val targetNullable = annotation.arguments
             .firstOrNull { it.name?.asString() == "targetNullable" }
             ?.value as? Boolean ?: false
+        val isSingleton = annotation.arguments
+            .firstOrNull { it.name?.asString() == "isSingleton" }
+            ?.value as? Boolean ?: false
 
         val inputType = if (sourceNullable) "$sourceSimpleNameOnly?" else sourceSimpleNameOnly
         val returnType = if (targetNullable) "$targetSimpleName?" else targetSimpleName
@@ -77,6 +80,7 @@ class MapperProcessor(
             propertyMappings = propertyMappings,
             isSourceNullable = sourceNullable,
             isTargetNullable = targetNullable,
+            isSingleton = isSingleton
         )
     }
 
@@ -94,13 +98,15 @@ class MapperProcessor(
         sourceProperties: Sequence<String>,
         propertyMappings: Map<String, String>,
         isSourceNullable: Boolean,
-        isTargetNullable: Boolean
+        isTargetNullable: Boolean,
+        isSingleton: Boolean
     ) {
         val effectiveReturnType = if (!isSourceNullable && isTargetNullable) {
             returnType.trimEnd('?')
         } else {
             returnType
         }
+        val prefixType = if (isSingleton) "object" else "class"
 
         val file = codeGenerator.createNewFile(
             Dependencies(false, sourceClass.containingFile!!),
@@ -113,7 +119,7 @@ class MapperProcessor(
             writer.write("import $sourceType\n")
             writer.write("import $targetType\n\n")
 
-            writer.write("class $mapperName : $interfaceSimpleName<$inputType, $effectiveReturnType> {\n")
+            writer.write("$prefixType $mapperName : $interfaceSimpleName<$inputType, $effectiveReturnType> {\n")
 
             if (isSourceNullable && isTargetNullable) {
                 if (oneLineEnabled) {

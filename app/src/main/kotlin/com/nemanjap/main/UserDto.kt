@@ -9,6 +9,7 @@ import com.nemanjap.annotations.PropertyMap
     oneLineEnabled = true,
     sourceNullable = true,
     targetNullable = false,
+    isSingleton = false,
     propertyMaps = [
         PropertyMap(from = "userId", to = "id"),
         PropertyMap(from = "userName", to = "name")
