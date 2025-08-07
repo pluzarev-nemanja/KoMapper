@@ -7,6 +7,8 @@ import com.nemanjap.annotations.PropertyMap
     User::class,
     suspendable = true,
     oneLineEnabled = true,
+    sourceNullable = true,
+    targetNullable = false,
     propertyMaps = [
         PropertyMap(from = "userId", to = "id"),
         PropertyMap(from = "userName", to = "name")

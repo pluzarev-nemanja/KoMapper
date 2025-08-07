@@ -7,6 +7,8 @@ import kotlin.reflect.KClass
 annotation class MapTo(
     val target: KClass<*>,
     val suspendable: Boolean = true,
-    val oneLineEnabled: Boolean = true,
+    val oneLineEnabled: Boolean = false,
+    val sourceNullable: Boolean = false,
+    val targetNullable: Boolean = false,
     val propertyMaps: Array<PropertyMap> = []
 )
