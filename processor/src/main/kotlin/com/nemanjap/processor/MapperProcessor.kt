@@ -63,6 +63,9 @@ class MapperProcessor(
         val generateReverse = annotation.arguments
             .firstOrNull { it.name?.asString() == "generateReverse" }
             ?.value as? Boolean ?: false
+        val generateExtensions = annotation.arguments
+            .firstOrNull { it.name?.asString() == "generateExtensions" }
+            ?.value as? Boolean ?: false
 
         val inputType = if (sourceNullable) "$sourceSimpleNameOnly?" else sourceSimpleNameOnly
         val returnType = if (targetNullable) "$targetSimpleName?" else targetSimpleName
@@ -108,6 +111,66 @@ class MapperProcessor(
                 isTargetNullable = sourceNullable,
                 isSingleton = isSingleton
             )
+        }
+        if (generateExtensions) {
+            writeExtensionFunction(
+                sourceClass = sourceClass,
+                sourceSimpleNameOnly = sourceSimpleNameOnly,
+                targetSimpleName = targetSimpleName,
+                isSourceNullable = sourceNullable,
+                isTargetNullable = targetNullable,
+                suspendable = suspendable
+            )
+            if (generateReverse) {
+                writeExtensionFunction(
+                    sourceClass = targetDeclaration,
+                    sourceSimpleNameOnly = targetSimpleName,
+                    targetSimpleName = sourceSimpleNameOnly,
+                    isSourceNullable = targetNullable,
+                    isTargetNullable = sourceNullable,
+                    suspendable = suspendable
+                )
+            }
+        }
+    }
+
+    private fun writeExtensionFunction(
+        sourceClass: KSClassDeclaration,
+        sourceSimpleNameOnly: String,
+        targetSimpleName: String,
+        isSourceNullable: Boolean,
+        isTargetNullable: Boolean,
+        suspendable: Boolean
+    ) {
+        val packageName = sourceClass.packageName.asString()
+        val fileName = "${sourceSimpleNameOnly}To${targetSimpleName}Extensions"
+
+        val file = codeGenerator.createNewFile(
+            Dependencies(true, sourceClass.containingFile!!),
+            packageName,
+            fileName
+        )
+        val inputType = if (isSourceNullable) "$sourceSimpleNameOnly?" else sourceSimpleNameOnly
+        val returnType = if (isTargetNullable) "$targetSimpleName?" else targetSimpleName
+
+        file.bufferedWriter().use { writer ->
+            writer.write("package $packageName\n\n")
+            if (suspendable) {
+                writer.write("import kotlinx.coroutines.runBlocking\n\n")
+                writer.write("// Extension suspend function to map $inputType to $returnType\n")
+                writer.write("suspend fun $inputType.to$targetSimpleName(): $returnType {\n")
+                writer.write("    return ${sourceSimpleNameOnly}To${targetSimpleName}Mapper().mappingObject(this)\n")
+                writer.write("}\n\n")
+                writer.write("// Blocking version for non-suspend context\n")
+                writer.write("fun $inputType.to${targetSimpleName}Blocking(): $returnType = runBlocking {\n")
+                writer.write("    to$targetSimpleName()\n")
+                writer.write("}\n")
+            } else {
+                writer.write("// Extension function to map $inputType to $returnType\n")
+                writer.write("fun $inputType.to$targetSimpleName(): $returnType {\n")
+                writer.write("    return ${sourceSimpleNameOnly}To${targetSimpleName}Mapper().mappingObject(this)\n")
+                writer.write("}\n")
+            }
         }
     }
 

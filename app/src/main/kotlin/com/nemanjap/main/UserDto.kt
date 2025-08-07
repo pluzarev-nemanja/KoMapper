@@ -10,6 +10,7 @@ import com.nemanjap.annotations.PropertyMap
     sourceNullable = true,
     targetNullable = false,
     isSingleton = false,
+    generateExtensions = true,
     generateReverse = true,
     propertyMaps = [
         PropertyMap(from = "userId", to = "id"),
