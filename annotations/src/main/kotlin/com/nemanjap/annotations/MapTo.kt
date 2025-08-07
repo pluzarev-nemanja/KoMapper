@@ -11,5 +11,6 @@ annotation class MapTo(
     val sourceNullable: Boolean = false,
     val targetNullable: Boolean = false,
     val isSingleton: Boolean = false,
+    val generateReverse: Boolean = false,
     val propertyMaps: Array<PropertyMap> = []
 )

@@ -60,6 +60,9 @@ class MapperProcessor(
         val isSingleton = annotation.arguments
             .firstOrNull { it.name?.asString() == "isSingleton" }
             ?.value as? Boolean ?: false
+        val generateReverse = annotation.arguments
+            .firstOrNull { it.name?.asString() == "generateReverse" }
+            ?.value as? Boolean ?: false
 
         val inputType = if (sourceNullable) "$sourceSimpleNameOnly?" else sourceSimpleNameOnly
         val returnType = if (targetNullable) "$targetSimpleName?" else targetSimpleName
@@ -82,6 +85,30 @@ class MapperProcessor(
             isTargetNullable = targetNullable,
             isSingleton = isSingleton
         )
+        if (generateReverse) {
+            val reversedMappings = propertyMappings.entries.associate { (k, v) -> v to k }
+            val targetProperties = targetDeclaration.getAllProperties().map { it.simpleName.asString() }
+
+            val targetInputType = if (targetNullable) "$targetSimpleName?" else targetSimpleName
+            val sourceReturnType = if (sourceNullable) "$sourceSimpleNameOnly?" else sourceSimpleNameOnly
+            writeToGeneratedFile(
+                sourceClass = targetDeclaration,
+                mapperName = "${targetSimpleName}To${sourceSimpleName}Mapper",
+                interfaceName = interfaceName,
+                sourceType = targetType,
+                targetType = sourceType,
+                oneLineEnabled = oneLineEnabled,
+                interfaceSimpleName = interfaceSimpleName,
+                inputType = targetInputType,
+                returnType = sourceReturnType,
+                suspendKeyword = suspendKeyword,
+                sourceProperties = targetProperties,
+                propertyMappings = reversedMappings,
+                isSourceNullable = targetNullable,
+                isTargetNullable = sourceNullable,
+                isSingleton = isSingleton
+            )
+        }
     }
 
     private fun writeToGeneratedFile(
