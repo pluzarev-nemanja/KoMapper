@@ -2,10 +2,12 @@ package com.nemanjap.processor
 
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.nemanjap.annotations.MapTo
 import com.nemanjap.annotations.Mapper
+import com.nemanjap.annotations.PropertyMap
 import com.nemanjap.annotations.SuspendMapper
 
 class MapperProcessor(
@@ -14,10 +16,12 @@ class MapperProcessor(
 ) : SymbolProcessor {
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
-        val symbols = resolver.getSymbolsWithAnnotation(MapTo::class.qualifiedName!!)
-        symbols.filterIsInstance<KSClassDeclaration>().forEach { sourceClass ->
-            generateMapper(sourceClass)
-        }
+        val mapToSymbols = resolver.getSymbolsWithAnnotation(MapTo::class.qualifiedName!!)
+        val propertyMapSymbols = resolver.getSymbolsWithAnnotation(PropertyMap::class.qualifiedName!!)
+        (mapToSymbols + propertyMapSymbols)
+            .filterIsInstance<KSClassDeclaration>().forEach { sourceClass ->
+                generateMapper(sourceClass)
+            }
         return emptyList()
     }
 
@@ -46,6 +50,7 @@ class MapperProcessor(
             .firstOrNull { it.name?.asString() == "oneLineEnabled" }
             ?.value as? Boolean ?: true
 
+        val propertyMappings = parsePropertyMappings(annotation)
 
         val file = codeGenerator.createNewFile(
             Dependencies(false, sourceClass.containingFile!!),
@@ -65,9 +70,10 @@ class MapperProcessor(
                 writer.write("class $mapperName : $interfaceSimpleName<$sourceSimpleNameOnly, $targetSimpleName> {\n")
                 writer.write("    override ${suspendKeyword}fun mappingObject(input: $sourceSimpleNameOnly): $targetSimpleName = $targetSimpleName(\n")
 
-                sourceProperties.forEachIndexed { index, name ->
+                sourceProperties.forEachIndexed { index, sourcePropName ->
+                    val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
                     val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                    writer.write("        $name = input.$name$comma\n")
+                    writer.write("        $targetPropName = input.$sourcePropName$comma\n")
                 }
 
                 writer.write("    )\n}")
@@ -76,9 +82,10 @@ class MapperProcessor(
                 writer.write("    override ${suspendKeyword}fun mappingObject(input: $sourceSimpleNameOnly): $targetSimpleName {\n")
                 writer.write("        return $targetSimpleName(\n")
 
-                sourceProperties.forEachIndexed { index, name ->
+                sourceProperties.forEachIndexed { index, sourcePropName ->
+                    val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
                     val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                    writer.write("            $name = input.$name$comma\n")
+                    writer.write("        $targetPropName = input.$sourcePropName$comma\n")
                 }
 
                 writer.write("        )\n    }\n}")
@@ -86,4 +93,22 @@ class MapperProcessor(
         }
     }
 
+    private fun parsePropertyMappings(annotation: KSAnnotation): Map<String, String> =
+        buildMap {
+            val propertyMapsArg = annotation.arguments.firstOrNull { it.name?.asString() == "propertyMaps" }
+            val propertyMapsValue = propertyMapsArg?.value
+
+            if (propertyMapsValue is List<*>) {
+                for (pmAnnotation in propertyMapsValue) {
+                    if (pmAnnotation is KSAnnotation) {
+                        val from =
+                            pmAnnotation.arguments.firstOrNull { it.name?.asString() == "from" }?.value as? String
+                        val to = pmAnnotation.arguments.firstOrNull { it.name?.asString() == "to" }?.value as? String
+                        if (from != null && to != null) {
+                            put(from, to)
+                        }
+                    }
+                }
+            }
+        }
 }

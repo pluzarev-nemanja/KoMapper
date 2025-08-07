@@ -1,9 +1,18 @@
 package com.nemanjap.main
 
 import com.nemanjap.annotations.MapTo
+import com.nemanjap.annotations.PropertyMap
 
-@MapTo(User::class, suspendable = true, oneLineEnabled = true)
+@MapTo(
+    User::class,
+    suspendable = true,
+    oneLineEnabled = true,
+    propertyMaps = [
+        PropertyMap(from = "userId", to = "id"),
+        PropertyMap(from = "userName", to = "name")
+    ]
+)
 data class UserDto(
-    val id: String,
-    val name: String
+    val userId: String,
+    val userName: String
 )
