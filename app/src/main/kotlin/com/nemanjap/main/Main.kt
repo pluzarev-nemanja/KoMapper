@@ -1,4 +1,4 @@
-package com.example.user
+package com.nemanjap.main
 
 fun main() {
     val user = User("", 17)

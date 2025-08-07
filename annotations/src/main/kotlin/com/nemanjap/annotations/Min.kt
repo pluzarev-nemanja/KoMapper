@@ -1,5 +1,5 @@
-package com.example.annotations
+package com.nemanjap.annotations
 
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
-annotation class NotEmpty
+annotation class Min(val value: Int)

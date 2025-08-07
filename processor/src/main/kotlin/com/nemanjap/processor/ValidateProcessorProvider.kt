@@ -1,4 +1,4 @@
-package com.example.processor
+package com.nemanjap.processor
 
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.processing.SymbolProcessorEnvironment

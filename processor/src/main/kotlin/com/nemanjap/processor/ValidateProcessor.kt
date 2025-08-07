@@ -1,4 +1,4 @@
-package com.example.processor
+package com.nemanjap.processor
 
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
@@ -12,8 +12,8 @@ class ValidateProcessor(
     override fun process(resolver: Resolver): List<KSAnnotated> {
         logger.warn(">>> KSP Processor started")
 
-        val notEmptySymbols = resolver.getSymbolsWithAnnotation("com.example.annotations.NotEmpty")
-        val minSymbols = resolver.getSymbolsWithAnnotation("com.example.annotations.Min")
+        val notEmptySymbols = resolver.getSymbolsWithAnnotation("com.nemanjap.annotations.NotEmpty")
+        val minSymbols = resolver.getSymbolsWithAnnotation("com.nemanjap.annotations.Min")
 
         logger.warn("Found @NotEmpty symbols count: ${notEmptySymbols.count()}")
         logger.warn("Found @Min symbols count: ${minSymbols.count()}")
