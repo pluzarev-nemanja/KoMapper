@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    compileOnly(kotlin("stdlib"))
 }
 
 tasks.test {

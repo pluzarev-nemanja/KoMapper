@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm")
+    id("com.google.devtools.ksp") version "2.1.21-2.0.1"
 }
 
 group = "org.example"
@@ -11,6 +12,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    implementation(project(":annotations"))
+    ksp(project(":processor"))
 }
 
 tasks.test {
@@ -18,4 +21,7 @@ tasks.test {
 }
 kotlin {
     jvmToolchain(17)
+    sourceSets.main {
+        kotlin.srcDir("build/generated/ksp/main/kotlin")
+    }
 }
