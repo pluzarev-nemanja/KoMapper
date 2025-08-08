@@ -6,9 +6,9 @@ import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.nemanjap.annotations.MapTo
-import com.nemanjap.annotations.Mapper
+import com.nemanjap.annotations.mapper.Mapper
 import com.nemanjap.annotations.PropertyMap
-import com.nemanjap.annotations.SuspendMapper
+import com.nemanjap.annotations.mapper.SuspendMapper
 
 class MapperProcessor(
     private val codeGenerator: CodeGenerator,

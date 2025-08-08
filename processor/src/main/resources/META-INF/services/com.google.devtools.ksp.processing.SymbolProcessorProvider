@@ -1,1 +1,2 @@
 com.nemanjap.processor.MapperProcessorProvider
+com.nemanjap.processor.RegisterInKoinProcessorProvider

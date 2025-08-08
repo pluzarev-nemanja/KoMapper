@@ -2,6 +2,7 @@ package com.nemanjap.main
 
 import com.nemanjap.annotations.MapTo
 import com.nemanjap.annotations.PropertyMap
+import com.nemanjap.annotations.RegisterInKoin
 
 @MapTo(
     User::class,
@@ -17,6 +18,7 @@ import com.nemanjap.annotations.PropertyMap
         PropertyMap(from = "userName", to = "name")
     ]
 )
+@RegisterInKoin
 data class UserDto(
     val userId: String,
     val userName: String
