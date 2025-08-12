@@ -1,4 +1,4 @@
-package com.nemanjap.processor
+package com.nemanjap.processor.mapper
 
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.processing.SymbolProcessorEnvironment

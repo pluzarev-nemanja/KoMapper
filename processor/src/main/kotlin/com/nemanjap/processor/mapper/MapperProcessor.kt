@@ -1,4 +1,4 @@
-package com.nemanjap.processor
+package com.nemanjap.processor.mapper
 
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.KSAnnotated
@@ -119,7 +119,10 @@ class MapperProcessor(
                 targetSimpleName = targetSimpleName,
                 isSourceNullable = sourceNullable,
                 isTargetNullable = targetNullable,
-                suspendable = suspendable
+                suspendable = suspendable,
+                sourceType = targetType,
+                targetType = sourceType,
+                mapperName = mapperName
             )
             if (generateReverse) {
                 writeExtensionFunction(
@@ -128,7 +131,10 @@ class MapperProcessor(
                     targetSimpleName = sourceSimpleNameOnly,
                     isSourceNullable = targetNullable,
                     isTargetNullable = sourceNullable,
-                    suspendable = suspendable
+                    suspendable = suspendable,
+                    sourceType = targetType,
+                    mapperName = "${targetSimpleName}To${sourceSimpleName}Mapper",
+                    targetType = sourceType
                 )
             }
         }
@@ -140,11 +146,14 @@ class MapperProcessor(
         targetSimpleName: String,
         isSourceNullable: Boolean,
         isTargetNullable: Boolean,
+        sourceType: String,
+        mapperName: String,
+        targetType: String,
         suspendable: Boolean
     ) {
-        val packageName = sourceClass.packageName.asString()
+        val packageName = sourceClass.packageName.asString().plus(".extensions")
         val fileName = "${sourceSimpleNameOnly}To${targetSimpleName}Extensions"
-
+        val mapperImport = packageName.removeSuffix(".extensions").plus(".mapper").plus(".$mapperName")
         val file = codeGenerator.createNewFile(
             Dependencies(true, sourceClass.containingFile!!),
             packageName,
@@ -156,7 +165,10 @@ class MapperProcessor(
         file.bufferedWriter().use { writer ->
             writer.write("package $packageName\n\n")
             if (suspendable) {
-                writer.write("import kotlinx.coroutines.runBlocking\n\n")
+                writer.write("import kotlinx.coroutines.runBlocking\n")
+                writer.write("import $sourceType\n")
+                writer.write("import $targetType\n")
+                writer.write("import $mapperImport\n\n")
                 writer.write("// Extension suspend function to map $inputType to $returnType\n")
                 writer.write("suspend fun $inputType.to$targetSimpleName(): $returnType {\n")
                 writer.write("    return ${sourceSimpleNameOnly}To${targetSimpleName}Mapper().mappingObject(this)\n")
@@ -197,14 +209,14 @@ class MapperProcessor(
             returnType
         }
         val prefixType = if (isSingleton) "object" else "class"
-
+        val packageName = sourceClass.packageName.asString().plus(".mapper")
         val file = codeGenerator.createNewFile(
             Dependencies(false, sourceClass.containingFile!!),
-            sourceClass.packageName.asString(),
+            packageName,
             mapperName
         )
         file.bufferedWriter().use { writer ->
-            writer.write("package ${sourceClass.packageName.asString()}\n\n")
+            writer.write("package $packageName\n\n")
             writer.write("import $interfaceName\n")
             writer.write("import $sourceType\n")
             writer.write("import $targetType\n\n")

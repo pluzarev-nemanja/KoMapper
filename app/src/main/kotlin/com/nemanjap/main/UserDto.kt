@@ -18,7 +18,7 @@ import com.nemanjap.annotations.RegisterInKoin
         PropertyMap(from = "userName", to = "name")
     ]
 )
-@RegisterInKoin
+@RegisterInKoin(isSingleton = false)
 data class UserDto(
     val userId: String,
     val userName: String
