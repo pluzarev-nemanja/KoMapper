@@ -21,10 +21,10 @@ import com.nemanjap.annotations.RegisterInKoin
 @RegisterInKoin(
     isSingleton = true,
     createdAtStart = true,
-    named = "NEMANJA",
+//    named = "NEMANJA",
     namedClass = User::class,
     bindInterfaces = false,
-    useConstructorDsl = false
+    useConstructorDsl = true
 )
 data class UserDto(
     val userId: String,

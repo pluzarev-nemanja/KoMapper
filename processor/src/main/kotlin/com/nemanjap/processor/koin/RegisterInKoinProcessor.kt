@@ -153,25 +153,35 @@ class RegisterInKoinProcessor(
      * Generates a single mapper registration line for the Koin module
      */
     private fun generateMapperRegistrationLine(mapper: MapperRegistrationData): String {
-        val namedOption = if (!mapper.named.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
-            "named(\"${mapper.named}\")"
-        } else if (!mapper.namedClassSimpleName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
-            "named<${mapper.namedClassSimpleName}>()"
-        } else null
+        val namedLine = when {
+            !mapper.named.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit" ->
+                "named(\"${mapper.named}\")"
+            !mapper.namedClassSimpleName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit" ->
+                "named<${mapper.namedClassSimpleName}>()"
+            else -> null
+        }
 
-        val createdAtStartOption = if (mapper.createdAtStart && mapper.isSingleton) "createdAtStart = true" else null
+        val createdAtStartLine =
+            if (mapper.createdAtStart && mapper.isSingleton) "createdAtStart = true" else null
 
-        val options = listOfNotNull(namedOption, createdAtStartOption).joinToString(", ")
+        val options = listOfNotNull(namedLine, createdAtStartLine).joinToString(", ")
 
         return if (mapper.useConstructorDsl) {
             val constructorDsl = if (mapper.isSingleton) "singleOf" else "factoryOf"
-            val bindLine = if (mapper.bindInterfaces) {
-                if (mapper.isSuspendable)
-                    "bind<SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>>()"
-                else
-                    "bind<Mapper<${mapper.sourceType}, ${mapper.targetType}>>()"
-            } else ""
-            "$constructorDsl(${options.ifEmpty { "" }}::${mapper.mapperSimpleName})${if (bindLine.isNotEmpty()) " { $bindLine }" else ""}"
+            buildString {
+                append("$constructorDsl(::${mapper.mapperSimpleName}) {\n")
+                if (mapper.createdAtStart && mapper.isSingleton) append("\t\tcreatedAtStart()\n")
+                if (!mapper.named.isNullOrEmpty() || !mapper.namedClassSimpleName.isNullOrEmpty()) {
+                    append("\t\t${namedLine}\n")
+                }
+                if (mapper.bindInterfaces) {
+                    if (mapper.isSuspendable)
+                        append("\tbind<SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>>()\n")
+                    else
+                        append("\tbind<Mapper<${mapper.sourceType}, ${mapper.targetType}>>()\n")
+                }
+                append("\t}")
+            }
         } else {
             val injectionType = if (mapper.isSingleton) "single" else "factory"
             val bindClass = if (mapper.bindInterfaces) {
@@ -184,6 +194,7 @@ class RegisterInKoinProcessor(
             "$injectionType$optionsPart { ${mapper.mapperSimpleName}() }$bindClass"
         }
     }
+
 
 
     private fun collectImports(mappers: List<MapperRegistrationData>): Set<String> {
@@ -212,6 +223,7 @@ class RegisterInKoinProcessor(
                 imports.add(mapper.namedClassFqName)
             }
             if (mapper.useConstructorDsl) {
+                imports.add(KoinImports.KOIN_CREATED_AT_START_IMPORT)
                 imports.add(
                     if (mapper.isSingleton)
                         KoinImports.KOIN_DSL_SINGLE_OF_IMPORT
