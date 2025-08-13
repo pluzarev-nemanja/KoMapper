@@ -66,6 +66,9 @@ class RegisterInKoinProcessor(
         val suspendable = mapToAnnotation.arguments
             .firstOrNull { it.name?.asString() == "suspendable" }
             ?.value as? Boolean ?: false
+        val bindInterfaces = registerAnnotation.arguments
+            .first { it.name?.asString() == "bindInterfaces" }
+            .value as Boolean
 
         val sourceSimple = classDecl.simpleName.asString()
         val targetSimple = (targetKSType.declaration as KSClassDeclaration).simpleName.asString()
@@ -100,6 +103,7 @@ class RegisterInKoinProcessor(
             createdAtStart = createdAtStart,
             named = named,
             namedClassFqName = namedClassFqName,
+            bindInterfaces = bindInterfaces
         )
     }
 
@@ -118,9 +122,6 @@ class RegisterInKoinProcessor(
             writer.appendLine("package $packageName")
             writer.appendLine()
             imports.forEach { writer.appendLine("import $it") }
-            mappers.forEach {
-                writer.appendLine("import ${it.getInterfaceImport()}")
-            }
             writer.appendLine()
             writer.appendLine("val mappersModule = module {")
             mappers.forEach { mapper ->
@@ -143,49 +144,58 @@ class RegisterInKoinProcessor(
      * Generates a single mapper registration line for the Koin module
      */
     private fun generateMapperRegistrationLine(mapper: MapperRegistrationData): String {
-        val namedOption = when {
-            !mapper.named.isNullOrEmpty() -> "named(\"${mapper.named}\")"
-            !mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit" -> "named<${mapper.namedClassFqName}>()"
-            else -> null
-        }
+        val namedOption = if (!mapper.named.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
+            "named(\"${mapper.named}\")"
+        } else if (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
+            "named<${mapper.namedClassFqName}>()"
+        } else null
 
         val createdAtStartOption = if (mapper.createdAtStart && mapper.isSingleton) "createdAtStart = true" else null
 
-        val params = listOfNotNull(namedOption, createdAtStartOption).joinToString(", ")
+        val options = listOfNotNull(namedOption, createdAtStartOption).joinToString(", ")
 
         return if (mapper.useConstructorDsl) {
             val constructorDsl = if (mapper.isSingleton) "singleOf" else "factoryOf"
-            val bindLine = if (mapper.isSuspendable)
-                "bind<SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>>()"
-            else
-                "bind<Mapper<${mapper.sourceType}, ${mapper.targetType}>>()"
-
-            if (params.isNotEmpty())
-                "$constructorDsl($params, ::${mapper.mapperSimpleName}) { $bindLine }"
-            else
-                "$constructorDsl(::${mapper.mapperSimpleName}) { $bindLine }"
+            val bindLine = if (mapper.bindInterfaces) {
+                if (mapper.isSuspendable)
+                    "bind<SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>>()"
+                else
+                    "bind<Mapper<${mapper.sourceType}, ${mapper.targetType}>>()"
+            } else ""
+            "$constructorDsl(${options.ifEmpty { "" }}::${mapper.mapperSimpleName})${if (bindLine.isNotEmpty()) " { $bindLine }" else ""}"
         } else {
-            val bindClass = if (mapper.isSuspendable)
-                "SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>::class"
-            else
-                "Mapper<${mapper.sourceType}, ${mapper.targetType}>::class"
-
             val injectionType = if (mapper.isSingleton) "single" else "factory"
-
-            if (params.isNotEmpty())
-                "$injectionType($params) { ${mapper.mapperSimpleName}() } bind $bindClass"
-            else
-                "$injectionType { ${mapper.mapperSimpleName}() } bind $bindClass"
+            val bindClass = if (mapper.bindInterfaces) {
+                if (mapper.isSuspendable)
+                    " bind SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>::class"
+                else
+                    " bind Mapper<${mapper.sourceType}, ${mapper.targetType}>::class"
+            } else ""
+            "$injectionType(${options.ifEmpty { "" }}) { ${mapper.mapperSimpleName}() }$bindClass"
         }
     }
+
 
     private fun collectImports(mappers: List<MapperRegistrationData>): Set<String> {
         val imports = mutableSetOf<String>()
         imports.add(KoinImports.KOIN_DSL_MODULE_IMPORT)
+
         mappers.forEach { mapper ->
             imports.add(mapper.fqMapperName)
-            imports.add(mapper.sourceTypeFqName)
-            imports.add(mapper.targetTypeFqName)
+
+            if (mapper.bindInterfaces) {
+                imports.add(mapper.sourceTypeFqName)
+                imports.add(mapper.targetTypeFqName)
+                imports.add(mapper.getInterfaceImport()!!)
+                if (mapper.useConstructorDsl) {
+                    imports.add(KoinImports.KOIN_DSL_EXTENSION_BIND_IMPORT)
+                } else {
+                    imports.add(KoinImports.KOIN_DSL_BIND_IMPORT)
+                }
+            }
+            if (!mapper.named.isNullOrEmpty() || (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit")) {
+                imports.add(KoinImports.KOIN_QUALIFIER_NAMED_IMPORT)
+            }
             if (mapper.useConstructorDsl) {
                 imports.add(
                     if (mapper.isSingleton)
@@ -193,23 +203,13 @@ class RegisterInKoinProcessor(
                     else
                         KoinImports.KOIN_DSL_FACTORY_OF_IMPORT
                 )
-                imports.add(KoinImports.KOIN_DSL_EXTENSION_BIND_IMPORT)
-            } else {
-                imports.add(KoinImports.KOIN_DSL_BIND_IMPORT)
-            }
-            if ((!mapper.named.isNullOrEmpty()) ||
-                (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit")
-            ) {
-                imports.add(KoinImports.KOIN_QUALIFIER_NAMED_IMPORT)
-            }
-            mapper.namedClassFqName?.let {
-                if (it != "kotlin.Unit") imports.add(it)
             }
         }
+
         return imports
     }
 
     private fun MapperRegistrationData.getInterfaceImport(): String? =
-        if (this.isSuspendable) SuspendMapper::class.qualifiedName else Mapper::class.qualifiedName
+        if (this.isSuspendable && this.bindInterfaces) SuspendMapper::class.qualifiedName else Mapper::class.qualifiedName
 
 }

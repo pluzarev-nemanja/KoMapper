@@ -42,19 +42,11 @@ annotation class RegisterInKoin(
 
     /**
      * If `true`, the generator will automatically bind all implemented interfaces
-     * using `bind` or `binds`.
+     * using `bind`.
      *
      * Example: `single { MyMapper() } bind MyInterface::class`
      */
     val bindInterfaces: Boolean = true,
-
-    /**
-     * Explicitly specify which types to bind to.
-     * Useful when you do not want to automatically bind all implemented interfaces.
-     *
-     * Example: `bindTypes = [MyInterface::class, AnotherInterface::class]`
-     */
-    val bindTypes: Array<KClass<*>> = [],
 
     /**
      * If `true`, the generator will use Koin's constructor DSL (`singleOf` / `factoryOf`)

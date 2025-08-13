@@ -23,8 +23,7 @@ import com.nemanjap.annotations.RegisterInKoin
     createdAtStart = true,
     named = "NEMANJA",
     namedClass = User::class,
-    bindTypes = [User::class],
-    bindInterfaces = false,
+    bindInterfaces = true,
     useConstructorDsl = false
 )
 data class UserDto(
