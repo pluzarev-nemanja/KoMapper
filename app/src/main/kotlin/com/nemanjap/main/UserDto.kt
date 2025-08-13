@@ -19,11 +19,11 @@ import com.nemanjap.annotations.RegisterInKoin
     ]
 )
 @RegisterInKoin(
-    isSingleton = false,
+    isSingleton = true,
     createdAtStart = true,
     named = "NEMANJA",
     namedClass = User::class,
-    bindInterfaces = true,
+    bindInterfaces = false,
     useConstructorDsl = false
 )
 data class UserDto(

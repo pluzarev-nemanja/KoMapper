@@ -85,9 +85,17 @@ class RegisterInKoinProcessor(
             .firstOrNull { it.name?.asString() == "createdAtStart" }?.value as? Boolean ?: false
         val named = registerAnnotation.arguments
             .firstOrNull { it.name?.asString() == "named" }?.value as? String
-        val namedClassFqName = (registerAnnotation.arguments
-            .firstOrNull { it.name?.asString() == "namedClass" }?.value as? KSType)
-            ?.declaration?.qualifiedName?.asString()
+        val namedClassKSType = registerAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "namedClass" }
+            ?.value as? KSType
+        val namedClassFqName = namedClassKSType
+            ?.declaration
+            ?.qualifiedName
+            ?.asString()
+        val namedClassSimpleName = namedClassKSType
+            ?.declaration
+            ?.simpleName
+            ?.asString()
 
         return MapperRegistrationData(
             fqMapperName = fqMapperName,
@@ -103,7 +111,8 @@ class RegisterInKoinProcessor(
             createdAtStart = createdAtStart,
             named = named,
             namedClassFqName = namedClassFqName,
-            bindInterfaces = bindInterfaces
+            bindInterfaces = bindInterfaces,
+            namedClassSimpleName = namedClassSimpleName
         )
     }
 
@@ -146,8 +155,8 @@ class RegisterInKoinProcessor(
     private fun generateMapperRegistrationLine(mapper: MapperRegistrationData): String {
         val namedOption = if (!mapper.named.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
             "named(\"${mapper.named}\")"
-        } else if (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
-            "named<${mapper.namedClassFqName}>()"
+        } else if (!mapper.namedClassSimpleName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
+            "named<${mapper.namedClassSimpleName}>()"
         } else null
 
         val createdAtStartOption = if (mapper.createdAtStart && mapper.isSingleton) "createdAtStart = true" else null
@@ -171,7 +180,8 @@ class RegisterInKoinProcessor(
                 else
                     " bind Mapper<${mapper.sourceType}, ${mapper.targetType}>::class"
             } else ""
-            "$injectionType(${options.ifEmpty { "" }}) { ${mapper.mapperSimpleName}() }$bindClass"
+            val optionsPart = if (options.isNotEmpty()) "($options)" else ""
+            "$injectionType$optionsPart { ${mapper.mapperSimpleName}() }$bindClass"
         }
     }
 
@@ -193,8 +203,13 @@ class RegisterInKoinProcessor(
                     imports.add(KoinImports.KOIN_DSL_BIND_IMPORT)
                 }
             }
+
             if (!mapper.named.isNullOrEmpty() || (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit")) {
                 imports.add(KoinImports.KOIN_QUALIFIER_NAMED_IMPORT)
+            }
+
+            if (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit") {
+                imports.add(mapper.namedClassFqName)
             }
             if (mapper.useConstructorDsl) {
                 imports.add(
@@ -208,6 +223,7 @@ class RegisterInKoinProcessor(
 
         return imports
     }
+
 
     private fun MapperRegistrationData.getInterfaceImport(): String? =
         if (this.isSuspendable && this.bindInterfaces) SuspendMapper::class.qualifiedName else Mapper::class.qualifiedName

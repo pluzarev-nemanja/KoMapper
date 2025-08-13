@@ -14,5 +14,6 @@ data class MapperRegistrationData(
     val createdAtStart: Boolean,
     val named: String?,
     val namedClassFqName: String?,
+    val namedClassSimpleName: String?,
     val bindInterfaces: Boolean
 )
