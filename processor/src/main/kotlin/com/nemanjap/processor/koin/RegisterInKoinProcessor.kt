@@ -25,7 +25,7 @@ class RegisterInKoinProcessor(
 
         logger.info("Found ${registerInKoinSymbols.size} classes annotated with @RegisterInKoin")
 
-        val mappersData = registerInKoinSymbols.mapNotNull { collectMapperData(it) }
+        val mappersData = registerInKoinSymbols.map { collectMapperData(it) }.flatten()
 
         if (mappersData.isEmpty()) {
             logger.warn("No mappers found to register in Koin")
@@ -40,7 +40,7 @@ class RegisterInKoinProcessor(
     /**
      * Extracts mapper registration data from a class annotated with @RegisterInKoin and @MapTo
      */
-    private fun collectMapperData(classDecl: KSClassDeclaration): MapperRegistrationData? {
+    private fun collectMapperData(classDecl: KSClassDeclaration): List<MapperRegistrationData> {
         val mapToAnnotation = classDecl.annotations.firstOrNull {
             it.annotationType.resolve().declaration.qualifiedName?.asString() == MapTo::class.qualifiedName
         } ?: KoinProcessorException.fail(
@@ -96,24 +96,56 @@ class RegisterInKoinProcessor(
             ?.declaration
             ?.simpleName
             ?.asString()
+        val generateReverse = mapToAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "generateReverse" }?.value as? Boolean ?: false
 
-        return MapperRegistrationData(
-            fqMapperName = fqMapperName,
-            mapperSimpleName = mapperClassName,
-            isSingleton = isSingleton,
-            isSuspendable = suspendable,
-            sourceTypeFqName = sourceFqName,
-            targetTypeFqName = targetFqName,
-            sourceType = sourceSimple,
-            targetType = targetSimple,
-            generatedPackage = generatedPackage,
-            useConstructorDsl = useConstructorDsl,
-            createdAtStart = createdAtStart,
-            named = named,
-            namedClassFqName = namedClassFqName,
-            bindInterfaces = bindInterfaces,
-            namedClassSimpleName = namedClassSimpleName
+        val mappersList = mutableListOf<MapperRegistrationData>()
+
+        mappersList.add(
+            MapperRegistrationData(
+                fqMapperName = fqMapperName,
+                mapperSimpleName = mapperClassName,
+                isSingleton = isSingleton,
+                isSuspendable = suspendable,
+                sourceTypeFqName = sourceFqName,
+                targetTypeFqName = targetFqName,
+                sourceType = sourceSimple,
+                targetType = targetSimple,
+                generatedPackage = generatedPackage,
+                useConstructorDsl = useConstructorDsl,
+                createdAtStart = createdAtStart,
+                named = named,
+                namedClassFqName = namedClassFqName,
+                bindInterfaces = bindInterfaces,
+                namedClassSimpleName = namedClassSimpleName
+            )
         )
+
+        if (generateReverse) {
+            val reverseMapperClassName = "${targetSimple}To${sourceSimple}Mapper"
+            val reverseFqMapperName = "$generatedPackage.$reverseMapperClassName"
+
+            mappersList.add(
+                MapperRegistrationData(
+                    fqMapperName = reverseFqMapperName,
+                    mapperSimpleName = reverseMapperClassName,
+                    isSingleton = isSingleton,
+                    isSuspendable = suspendable,
+                    sourceTypeFqName = targetFqName,
+                    targetTypeFqName = sourceFqName,
+                    sourceType = targetSimple,
+                    targetType = sourceSimple,
+                    generatedPackage = generatedPackage,
+                    useConstructorDsl = useConstructorDsl,
+                    createdAtStart = createdAtStart,
+                    named = named,
+                    namedClassFqName = namedClassFqName,
+                    bindInterfaces = bindInterfaces,
+                    namedClassSimpleName = namedClassSimpleName
+                )
+            )
+        }
+        return mappersList
     }
 
     /**
@@ -156,8 +188,10 @@ class RegisterInKoinProcessor(
         val namedLine = when {
             !mapper.named.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit" ->
                 "named(\"${mapper.named}\")"
+
             !mapper.namedClassSimpleName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit" ->
                 "named<${mapper.namedClassSimpleName}>()"
+
             else -> null
         }
 
@@ -194,7 +228,6 @@ class RegisterInKoinProcessor(
             "$injectionType$optionsPart { ${mapper.mapperSimpleName}() }$bindClass"
         }
     }
-
 
 
     private fun collectImports(mappers: List<MapperRegistrationData>): Set<String> {
