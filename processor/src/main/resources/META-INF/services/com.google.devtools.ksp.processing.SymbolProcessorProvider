@@ -1,1 +1,2 @@
-com.example.processor.ValidateProcessorProvider
+com.nemanjap.processor.mapper.MapperProcessorProvider
+com.nemanjap.processor.koin.RegisterInKoinProcessorProvider

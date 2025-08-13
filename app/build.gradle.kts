@@ -14,6 +14,8 @@ dependencies {
     testImplementation(kotlin("test"))
     implementation(project(":annotations"))
     ksp(project(":processor"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("io.insert-koin:koin-core:3.5.3")
 }
 
 tasks.test {
