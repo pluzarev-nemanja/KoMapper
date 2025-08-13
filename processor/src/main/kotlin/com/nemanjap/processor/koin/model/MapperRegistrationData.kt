@@ -10,5 +10,8 @@ data class MapperRegistrationData(
     val targetType: String,
     val generatedPackage: String,
     val useConstructorDsl: Boolean,
-    val targetTypeFqName: String
+    val targetTypeFqName: String,
+    val createdAtStart: Boolean,
+    val named: String?,
+    val namedClassFqName: String?
 )

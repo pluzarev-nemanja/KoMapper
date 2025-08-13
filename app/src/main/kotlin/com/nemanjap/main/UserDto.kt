@@ -23,8 +23,9 @@ import com.nemanjap.annotations.RegisterInKoin
     createdAtStart = true,
     named = "NEMANJA",
     namedClass = User::class,
-    bindInterfaces = true,
-    useConstructorDsl = true
+    bindTypes = [User::class],
+    bindInterfaces = false,
+    useConstructorDsl = false
 )
 data class UserDto(
     val userId: String,

@@ -78,6 +78,13 @@ class RegisterInKoinProcessor(
             ?: KoinProcessorException.fail("Cannot get FQ name of source class")
         val targetFqName = targetKSTypeDecl.qualifiedName?.asString()
             ?: KoinProcessorException.fail("Cannot get FQ name of target class")
+        val createdAtStart = registerAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "createdAtStart" }?.value as? Boolean ?: false
+        val named = registerAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "named" }?.value as? String
+        val namedClassFqName = (registerAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "namedClass" }?.value as? KSType)
+            ?.declaration?.qualifiedName?.asString()
 
         return MapperRegistrationData(
             fqMapperName = fqMapperName,
@@ -89,7 +96,10 @@ class RegisterInKoinProcessor(
             sourceType = sourceSimple,
             targetType = targetSimple,
             generatedPackage = generatedPackage,
-            useConstructorDsl = useConstructorDsl
+            useConstructorDsl = useConstructorDsl,
+            createdAtStart = createdAtStart,
+            named = named,
+            namedClassFqName = namedClassFqName,
         )
     }
 
@@ -133,6 +143,16 @@ class RegisterInKoinProcessor(
      * Generates a single mapper registration line for the Koin module
      */
     private fun generateMapperRegistrationLine(mapper: MapperRegistrationData): String {
+        val namedOption = when {
+            !mapper.named.isNullOrEmpty() -> "named(\"${mapper.named}\")"
+            !mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit" -> "named<${mapper.namedClassFqName}>()"
+            else -> null
+        }
+
+        val createdAtStartOption = if (mapper.createdAtStart) "createdAtStart = true" else null
+
+        val params = listOfNotNull(namedOption, createdAtStartOption).joinToString(", ")
+
         return if (mapper.useConstructorDsl) {
             val constructorDsl = if (mapper.isSingleton) "singleOf" else "factoryOf"
             val bindLine = if (mapper.isSuspendable)
@@ -140,7 +160,10 @@ class RegisterInKoinProcessor(
             else
                 "bind<Mapper<${mapper.sourceType}, ${mapper.targetType}>>()"
 
-            "$constructorDsl(::${mapper.mapperSimpleName}) { $bindLine }"
+            if (params.isNotEmpty())
+                "$constructorDsl($params, ::${mapper.mapperSimpleName}) { $bindLine }"
+            else
+                "$constructorDsl(::${mapper.mapperSimpleName}) { $bindLine }"
         } else {
             val bindClass = if (mapper.isSuspendable)
                 "SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>::class"
@@ -148,7 +171,11 @@ class RegisterInKoinProcessor(
                 "Mapper<${mapper.sourceType}, ${mapper.targetType}>::class"
 
             val injectionType = if (mapper.isSingleton) "single" else "factory"
-            "$injectionType { ${mapper.mapperSimpleName}() } bind $bindClass"
+
+            if (params.isNotEmpty())
+                "$injectionType($params) { ${mapper.mapperSimpleName}() } bind $bindClass"
+            else
+                "$injectionType { ${mapper.mapperSimpleName}() } bind $bindClass"
         }
     }
 
@@ -159,7 +186,6 @@ class RegisterInKoinProcessor(
             imports.add(mapper.fqMapperName)
             imports.add(mapper.sourceTypeFqName)
             imports.add(mapper.targetTypeFqName)
-
             if (mapper.useConstructorDsl) {
                 imports.add(
                     if (mapper.isSingleton)
@@ -170,6 +196,14 @@ class RegisterInKoinProcessor(
                 imports.add(KoinImports.KOIN_DSL_EXTENSION_BIND_IMPORT)
             } else {
                 imports.add(KoinImports.KOIN_DSL_BIND_IMPORT)
+            }
+            if ((!mapper.named.isNullOrEmpty()) ||
+                (!mapper.namedClassFqName.isNullOrEmpty() && mapper.namedClassFqName != "kotlin.Unit")
+            ) {
+                imports.add(KoinImports.KOIN_QUALIFIER_NAMED_IMPORT)
+            }
+            mapper.namedClassFqName?.let {
+                if (it != "kotlin.Unit") imports.add(it)
             }
         }
         return imports
