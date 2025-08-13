@@ -18,7 +18,12 @@ import com.nemanjap.annotations.RegisterInKoin
         PropertyMap(from = "userName", to = "name")
     ]
 )
-@RegisterInKoin(isSingleton = false)
+@RegisterInKoin(
+    isSingleton = false,
+    createdAtStart = true,
+    named = "NEMANJA",
+    bindInterfaces = true
+)
 data class UserDto(
     val userId: String,
     val userName: String
