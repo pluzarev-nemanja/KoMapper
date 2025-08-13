@@ -149,7 +149,7 @@ class RegisterInKoinProcessor(
             else -> null
         }
 
-        val createdAtStartOption = if (mapper.createdAtStart) "createdAtStart = true" else null
+        val createdAtStartOption = if (mapper.createdAtStart && mapper.isSingleton) "createdAtStart = true" else null
 
         val params = listOfNotNull(namedOption, createdAtStartOption).joinToString(", ")
 

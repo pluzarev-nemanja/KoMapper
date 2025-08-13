@@ -19,7 +19,7 @@ import com.nemanjap.annotations.RegisterInKoin
     ]
 )
 @RegisterInKoin(
-    isSingleton = true,
+    isSingleton = false,
     createdAtStart = true,
     named = "NEMANJA",
     namedClass = User::class,
