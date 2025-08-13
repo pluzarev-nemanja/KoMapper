@@ -54,6 +54,9 @@ class RegisterInKoinProcessor(
         val isSingleton = registerAnnotation.arguments
             .firstOrNull { it.name?.asString() == "isSingleton" }
             ?.value as? Boolean ?: false
+        val useConstructorDsl = registerAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "useConstructorDsl" }
+            ?.value as? Boolean ?: false
 
         val targetKSType = mapToAnnotation.arguments
             .firstOrNull { it.name?.asString() == "target" }
@@ -85,7 +88,8 @@ class RegisterInKoinProcessor(
             targetTypeFqName = targetFqName,
             sourceType = sourceSimple,
             targetType = targetSimple,
-            generatedPackage = generatedPackage
+            generatedPackage = generatedPackage,
+            useConstructorDsl = useConstructorDsl
         )
     }
 
@@ -99,15 +103,12 @@ class RegisterInKoinProcessor(
             packageName = packageName,
             fileName = "MappersModule"
         )
+        val imports = collectImports(mappers)
         file.bufferedWriter().use { writer ->
             writer.appendLine("package $packageName")
             writer.appendLine()
-            writer.appendLine("import ${KoinImports.KOIN_DSL_MODULE_IMPORT}")
-            writer.appendLine("import ${KoinImports.KOIN_DSL_BIND_IMPORT}")
+            imports.forEach { writer.appendLine("import $it") }
             mappers.forEach {
-                writer.appendLine("import ${it.fqMapperName}")
-                writer.appendLine("import ${it.sourceTypeFqName}")
-                writer.appendLine("import ${it.targetTypeFqName}")
                 writer.appendLine("import ${it.getInterfaceImport()}")
             }
             writer.appendLine()
@@ -132,13 +133,46 @@ class RegisterInKoinProcessor(
      * Generates a single mapper registration line for the Koin module
      */
     private fun generateMapperRegistrationLine(mapper: MapperRegistrationData): String {
-        val injectionType = if (mapper.isSingleton) "single" else "factory"
-        val bindInterface = if (mapper.isSuspendable) {
-            "SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>"
+        return if (mapper.useConstructorDsl) {
+            val constructorDsl = if (mapper.isSingleton) "singleOf" else "factoryOf"
+            val bindLine = if (mapper.isSuspendable)
+                "bind<SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>>()"
+            else
+                "bind<Mapper<${mapper.sourceType}, ${mapper.targetType}>>()"
+
+            "$constructorDsl(::${mapper.mapperSimpleName}) { $bindLine }"
         } else {
-            "Mapper<${mapper.sourceType}, ${mapper.targetType}>"
+            val bindClass = if (mapper.isSuspendable)
+                "SuspendMapper<${mapper.sourceType}, ${mapper.targetType}>::class"
+            else
+                "Mapper<${mapper.sourceType}, ${mapper.targetType}>::class"
+
+            val injectionType = if (mapper.isSingleton) "single" else "factory"
+            "$injectionType { ${mapper.mapperSimpleName}() } bind $bindClass"
         }
-        return "$injectionType { ${mapper.mapperSimpleName}() } bind $bindInterface::class"
+    }
+
+    private fun collectImports(mappers: List<MapperRegistrationData>): Set<String> {
+        val imports = mutableSetOf<String>()
+        imports.add(KoinImports.KOIN_DSL_MODULE_IMPORT)
+        mappers.forEach { mapper ->
+            imports.add(mapper.fqMapperName)
+            imports.add(mapper.sourceTypeFqName)
+            imports.add(mapper.targetTypeFqName)
+
+            if (mapper.useConstructorDsl) {
+                imports.add(
+                    if (mapper.isSingleton)
+                        KoinImports.KOIN_DSL_SINGLE_OF_IMPORT
+                    else
+                        KoinImports.KOIN_DSL_FACTORY_OF_IMPORT
+                )
+                imports.add(KoinImports.KOIN_DSL_EXTENSION_BIND_IMPORT)
+            } else {
+                imports.add(KoinImports.KOIN_DSL_BIND_IMPORT)
+            }
+        }
+        return imports
     }
 
     private fun MapperRegistrationData.getInterfaceImport(): String? =
