@@ -1,5 +1,8 @@
 package com.nemanjap.annotations
 
+import com.nemanjap.annotations.condition.ConditionEvaluator
+import kotlin.reflect.KClass
+
 /**
  * Specifies a mapping between two property names when generating code.
  *
@@ -24,10 +27,13 @@ package com.nemanjap.annotations
  *
  * @property from The name of the property in the source class.
  * @property to   The name of the property in the target class.
+ * @property condition The [ConditionEvaluator] implementation used to check
+ * whether this property should be mapped. Defaults to the base [ConditionEvaluator] (always maps).
  */
 @Target(AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
 annotation class PropertyMap(
     val from: String,
-    val to: String
+    val to: String,
+    val condition: KClass<out ConditionEvaluator<*>> = ConditionEvaluator::class
 )

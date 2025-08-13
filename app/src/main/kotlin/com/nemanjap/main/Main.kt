@@ -11,7 +11,7 @@ fun main() {
         modules(mappersModule)
     }
 
-    val userDto: UserDto? = UserDto("123", "Alice")
+    val userDto: UserDto? = UserDto("1243124", "")
     val mapper = UserDtoToUserMapper()
     val user: User = runBlocking {
         mapper.mappingObject(userDto)
