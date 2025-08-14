@@ -33,16 +33,57 @@ With KoMapper, you write *less boilerplate* and keep your mapping logic clean, c
 
 ## 📦 Installation
 
-Add the KSP plugin and KoMapper dependencies to your `build.gradle.kts`:
+### Install via JitPack
+
+KoMapper is published on [JitPack](https://jitpack.io/#pluzarev-nemanja/KoMapper/v0.1.0)!
+
+Add the following to your `build.gradle.kts` or `build.gradle`:
+
+<details>
+<summary>build.gradle.kts (Kotlin DSL)</summary>
 
 ```kotlin
 plugins {
-    id("com.google.devtools.ksp") version "X.Y.Z"
+    id("com.google.devtools.ksp") version "<KSP_VERSION>"
 }
-
+repositories {
+    mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+}
 dependencies {
     implementation("io.insert-koin:koin-core:3.5.0") // optional for DI
-    ksp("com.nemanjap:komapper:1.0.0") // Not yet published on JitPack or MavenCentral
+    ksp("com.github.pluzarev-nemanja:KoMapper:v0.1.0")
+}
+```
+</details>
+
+<details>
+<summary>build.gradle (Groovy DSL)</summary>
+
+```groovy
+plugins {
+    id 'com.google.devtools.ksp' version '<KSP_VERSION>'
+}
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+dependencies {
+    implementation 'io.insert-koin:koin-core:3.5.0' // optional for DI
+    ksp 'com.github.pluzarev-nemanja:KoMapper:v0.1.0'
+}
+```
+</details>
+
+> **Replace `<KSP_VERSION>` with the latest KSP plugin version compatible with your project.**
+
+### Alternate: Local Dependency
+
+If you prefer to build from source:
+
+```kotlin
+dependencies {
+    ksp(files("path/to/komapper/build/libs/komapper-<version>.jar"))
 }
 ```
 
@@ -146,4 +187,4 @@ MIT License – feel free to use in your projects.
 ---
 
 > **Note:**  
-> KoMapper is currently **not published** on JitPack or Maven Central. To use it, clone this repository and include it as a local dependency in your build.
+> KoMapper is now available via JitPack! For the latest instructions, see the Installation section above.
