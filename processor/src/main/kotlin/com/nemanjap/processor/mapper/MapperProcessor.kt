@@ -6,9 +6,11 @@ import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.nemanjap.annotations.MapTo
-import com.nemanjap.annotations.mapper.Mapper
 import com.nemanjap.annotations.PropertyMap
+import com.nemanjap.annotations.condition.ConditionEvaluator
+import com.nemanjap.annotations.mapper.Mapper
 import com.nemanjap.annotations.mapper.SuspendMapper
+import com.nemanjap.processor.mapper.model.PropertyMappingData
 
 class MapperProcessor(
     private val codeGenerator: CodeGenerator,
@@ -89,7 +91,15 @@ class MapperProcessor(
             isSingleton = isSingleton
         )
         if (generateReverse) {
-            val reversedMappings = propertyMappings.entries.associate { (k, v) -> v to k }
+            val reversedMappings: Map<String, PropertyMappingData> =
+                propertyMappings.entries.associate { (sourceProp, mappingData) ->
+                    val targetProp = mappingData.to
+                    targetProp to PropertyMappingData(
+                        from = targetProp,
+                        to = sourceProp,
+                        conditionClass = null
+                    )
+                }
             val targetProperties = targetDeclaration.getAllProperties().map { it.simpleName.asString() }
 
             val targetInputType = if (targetNullable) "$targetSimpleName?" else targetSimpleName
@@ -198,7 +208,7 @@ class MapperProcessor(
         returnType: String,
         suspendKeyword: String,
         sourceProperties: Sequence<String>,
-        propertyMappings: Map<String, String>,
+        propertyMappings: Map<String, PropertyMappingData>,
         isSourceNullable: Boolean,
         isTargetNullable: Boolean,
         isSingleton: Boolean
@@ -215,85 +225,65 @@ class MapperProcessor(
             packageName,
             mapperName
         )
+        val conditionImports = propertyMappings.values
+            .mapNotNull { it.conditionClass }
+            .distinct()
+
         file.bufferedWriter().use { writer ->
             writer.write("package $packageName\n\n")
             writer.write("import $interfaceName\n")
             writer.write("import $sourceType\n")
-            writer.write("import $targetType\n\n")
+            writer.write("import $targetType\n")
+            conditionImports.forEach { writer.write("import $it\n") }
+            writer.newLine()
 
             writer.write("$prefixType $mapperName : $interfaceSimpleName<$inputType, $effectiveReturnType> {\n")
 
-            if (isSourceNullable && isTargetNullable) {
-                if (oneLineEnabled) {
-                    writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType = input?.let {\n")
-                    writer.write("        ${effectiveReturnType.trimEnd('?')}(\n")
-                    sourceProperties.forEachIndexed { index, sourcePropName ->
-                        val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
-                        val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                        writer.write("            $targetPropName = it.$sourcePropName$comma\n")
-                    }
-                    writer.write("        )\n    }\n")
-                } else {
-                    writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType {\n")
-                    writer.write("        return input?.let {\n")
-                    writer.write("            ${effectiveReturnType.trimEnd('?')}(\n")
-                    sourceProperties.forEachIndexed { index, sourcePropName ->
-                        val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
-                        val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                        writer.write("                $targetPropName = it.$sourcePropName$comma\n")
-                    }
-                    writer.write("            )\n")
-                    writer.write("        }\n    }\n")
+            val mappingBody = buildString {
+                sourceProperties.forEachIndexed { index, sourceProp ->
+                    val mappingData = propertyMappings[sourceProp]
+                    val targetProp = mappingData?.to ?: sourceProp
+                    val conditionClassSimple = mappingData?.conditionClass?.substringAfterLast('.')
+                    val comma = if (index < sourceProperties.count() - 1) "," else ""
+
+                    val property = sourceClass.getAllProperties().first { it.simpleName.asString() == sourceProp }
+                    val propertyType = property.type.resolve()
+                    val isSourcePropNullable = propertyType.isMarkedNullable
+
+                    val valueExpr = getMappingExpression(
+                        sourceProp = sourceProp,
+                        sourceTypeNullable = isSourcePropNullable,
+                        targetTypeNullable = false,
+                        conditionClass = conditionClassSimple,
+                        sourceClass = sourceClass,
+                    )
+                    append("            $targetProp = $valueExpr$comma\n")
                 }
-            } else if (isSourceNullable) {
-                if (oneLineEnabled) {
-                    writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType = input?.let {\n")
-                    writer.write("        ${effectiveReturnType.trimEnd('?')}(\n")
-                    sourceProperties.forEachIndexed { index, sourcePropName ->
-                        val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
-                        val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                        writer.write("            $targetPropName = it.$sourcePropName$comma\n")
-                    }
-                    writer.write("        )\n    } ?: throw IllegalArgumentException(\"Input is null but target is non-nullable\")\n")
-                } else {
-                    writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType {\n")
+            }
+            if (oneLineEnabled) {
+                writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType = ${if (isSourceNullable) "input?.let {\n        ${effectiveReturnType.trimEnd('?')}(\n$mappingBody        )\n    } ?: throw IllegalArgumentException(\"Input is null but target is non-nullable\")" else "$effectiveReturnType(\n$mappingBody    )"}\n")
+            } else {
+                writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType {\n")
+                if (isSourceNullable) {
                     writer.write("        return input?.let {\n")
                     writer.write("            ${effectiveReturnType.trimEnd('?')}(\n")
-                    sourceProperties.forEachIndexed { index, sourcePropName ->
-                        val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
-                        val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                        writer.write("                $targetPropName = it.$sourcePropName$comma\n")
-                    }
+                    writer.write(mappingBody)
                     writer.write("            )\n")
                     writer.write("        } ?: throw IllegalArgumentException(\"Input is null but target is non-nullable\")\n")
-                    writer.write("    }\n")
-                }
-            } else {
-                if (oneLineEnabled) {
-                    writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType = $effectiveReturnType(\n")
-                    sourceProperties.forEachIndexed { index, sourcePropName ->
-                        val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
-                        val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                        writer.write("        $targetPropName = input.$sourcePropName$comma\n")
-                    }
-                    writer.write("    )\n")
                 } else {
-                    writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType {\n")
                     writer.write("        return $effectiveReturnType(\n")
-                    sourceProperties.forEachIndexed { index, sourcePropName ->
-                        val targetPropName = propertyMappings[sourcePropName] ?: sourcePropName
-                        val comma = if (index < sourceProperties.toList().size - 1) "," else ""
-                        writer.write("            $targetPropName = input.$sourcePropName$comma\n")
-                    }
-                    writer.write("        )\n    }\n")
+                    writer.write(mappingBody)
+                    writer.write("        )\n")
                 }
+                writer.write("    }\n")
             }
 
             writer.write("}\n")
         }
     }
 
-    private fun parsePropertyMappings(annotation: KSAnnotation): Map<String, String> =
+
+    private fun parsePropertyMappings(annotation: KSAnnotation): Map<String, PropertyMappingData> =
         buildMap {
             val propertyMapsArg = annotation.arguments.firstOrNull { it.name?.asString() == "propertyMaps" }
             val propertyMapsValue = propertyMapsArg?.value
@@ -304,11 +294,70 @@ class MapperProcessor(
                         val from =
                             pmAnnotation.arguments.firstOrNull { it.name?.asString() == "from" }?.value as? String
                         val to = pmAnnotation.arguments.firstOrNull { it.name?.asString() == "to" }?.value as? String
+
+                        val conditionKSType = pmAnnotation.arguments
+                            .firstOrNull { it.name?.asString() == "condition" }
+                            ?.value as? KSType
+
+                        val conditionClassName = conditionKSType?.declaration?.qualifiedName?.asString()
+                        val defaultConditionFqn = ConditionEvaluator::class.qualifiedName
+                        val conditionFinal =
+                            if (conditionClassName == null || conditionClassName == defaultConditionFqn) {
+                                null
+                            } else {
+                                conditionClassName
+                            }
+
                         if (from != null && to != null) {
-                            put(from, to)
+                            put(from, PropertyMappingData(from = from, to = to, conditionClass = conditionFinal))
                         }
                     }
                 }
             }
         }
+
+    private fun getMappingExpression(
+        sourceProp: String,
+        sourceTypeNullable: Boolean,
+        targetTypeNullable: Boolean,
+        conditionClass: String?,
+        sourceClass: KSClassDeclaration
+    ): String = when {
+        conditionClass != null -> {
+            if (targetTypeNullable) {
+                "if (${conditionClass}().shouldMap(input.$sourceProp)) input.$sourceProp else ${conditionClass}().defaultValue()"
+            } else {
+                "(if (${conditionClass}().shouldMap(input.$sourceProp)) input.$sourceProp else ${conditionClass}().defaultValue())"
+            }
+        }
+
+        sourceTypeNullable && !targetTypeNullable -> {
+            "input.$sourceProp ?: ${getDefaultValueForProperty(sourceClass = sourceClass, sourceProp)}"
+        }
+
+        else -> "input.$sourceProp"
+    }
+
+
+    /** Helper function to get default value if type is null **/
+    private fun getDefaultValueForProperty(
+        sourceClass: KSClassDeclaration,
+        sourceProp: String
+    ): String {
+        val property = sourceClass.getAllProperties().firstOrNull { it.simpleName.asString() == sourceProp }
+        val typeName = property?.type?.resolve()?.declaration?.qualifiedName?.asString() ?: "kotlin.Any"
+
+        return when {
+            typeName == "kotlin.String" -> "\"\""
+            typeName == "kotlin.Int" -> "0"
+            typeName == "kotlin.Long" -> "0L"
+            typeName == "kotlin.Double" -> "0.0"
+            typeName == "kotlin.Float" -> "0f"
+            typeName == "kotlin.Boolean" -> "false"
+            typeName.startsWith("kotlin.collections.List") -> "emptyList()"
+            typeName.startsWith("kotlin.collections.Set") -> "emptySet()"
+            typeName.startsWith("kotlin.collections.Map") -> "emptyMap()"
+            else -> "${typeName}()"
+        }
+    }
 }
