@@ -30,7 +30,7 @@ import com.nemanjap.annotations.condition.ConditionEvaluator
 @RegisterInKoin(
     isSingleton = true,
     createdAtStart = true,
-//    named = "NEMANJA",
+    named = "UserDtoName",
     namedClass = User::class,
     bindInterfaces = false,
     useConstructorDsl = true

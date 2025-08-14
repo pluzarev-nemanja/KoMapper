@@ -91,14 +91,15 @@ class MapperProcessor(
             isSingleton = isSingleton
         )
         if (generateReverse) {
-            val reversedMappings: Map<String, PropertyMappingData> = propertyMappings.entries.associate { (sourceProp, mappingData) ->
-                val targetProp = mappingData.to
-                targetProp to PropertyMappingData(
-                    from = targetProp,
-                    to = sourceProp,
-                    conditionClass = null
-                )
-            }
+            val reversedMappings: Map<String, PropertyMappingData> =
+                propertyMappings.entries.associate { (sourceProp, mappingData) ->
+                    val targetProp = mappingData.to
+                    targetProp to PropertyMappingData(
+                        from = targetProp,
+                        to = sourceProp,
+                        conditionClass = null
+                    )
+                }
             val targetProperties = targetDeclaration.getAllProperties().map { it.simpleName.asString() }
 
             val targetInputType = if (targetNullable) "$targetSimpleName?" else targetSimpleName
@@ -242,27 +243,30 @@ class MapperProcessor(
                 sourceProperties.forEachIndexed { index, sourceProp ->
                     val mappingData = propertyMappings[sourceProp]
                     val targetProp = mappingData?.to ?: sourceProp
-                    val conditionClass = mappingData?.conditionClass?.substringAfterLast('.')
+                    val conditionClassSimple = mappingData?.conditionClass?.substringAfterLast('.')
                     val comma = if (index < sourceProperties.count() - 1) "," else ""
 
-                    val mappingLine = if (conditionClass != null) {
-                        "            $targetProp = if (${conditionClass}().shouldMap(input.$sourceProp)) input.$sourceProp else ${conditionClass}().defaultValue()$comma\n"
-                    } else {
-                        "            $targetProp = input.$sourceProp$comma\n"
-                    }
-                    append(mappingLine)
+                    val property = sourceClass.getAllProperties().first { it.simpleName.asString() == sourceProp }
+                    val propertyType = property.type.resolve()
+                    val isSourcePropNullable = propertyType.isMarkedNullable
+
+                    val valueExpr = getMappingExpression(
+                        sourceProp = sourceProp,
+                        sourceTypeNullable = isSourcePropNullable,
+                        targetTypeNullable = false,
+                        conditionClass = conditionClassSimple,
+                        sourceClass = sourceClass,
+                    )
+                    append("            $targetProp = $valueExpr$comma\n")
                 }
             }
-
-            val nullHandling = if (isSourceNullable) "input?.let {\n$mappingBody}" else mappingBody
-
             if (oneLineEnabled) {
-                writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType = ${if (isSourceNullable) "input?.let {\n        $effectiveReturnType(\n$mappingBody        )\n    } ?: throw IllegalArgumentException(\"Input is null but target is non-nullable\")" else "$effectiveReturnType(\n$mappingBody    )"}\n")
+                writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType = ${if (isSourceNullable) "input?.let {\n        ${effectiveReturnType.trimEnd('?')}(\n$mappingBody        )\n    } ?: throw IllegalArgumentException(\"Input is null but target is non-nullable\")" else "$effectiveReturnType(\n$mappingBody    )"}\n")
             } else {
                 writer.write("    override ${suspendKeyword}fun mappingObject(input: $inputType): $effectiveReturnType {\n")
                 if (isSourceNullable) {
                     writer.write("        return input?.let {\n")
-                    writer.write("            $effectiveReturnType(\n")
+                    writer.write("            ${effectiveReturnType.trimEnd('?')}(\n")
                     writer.write(mappingBody)
                     writer.write("            )\n")
                     writer.write("        } ?: throw IllegalArgumentException(\"Input is null but target is non-nullable\")\n")
@@ -311,4 +315,49 @@ class MapperProcessor(
                 }
             }
         }
+
+    private fun getMappingExpression(
+        sourceProp: String,
+        sourceTypeNullable: Boolean,
+        targetTypeNullable: Boolean,
+        conditionClass: String?,
+        sourceClass: KSClassDeclaration
+    ): String = when {
+        conditionClass != null -> {
+            if (targetTypeNullable) {
+                "if (${conditionClass}().shouldMap(input.$sourceProp)) input.$sourceProp else ${conditionClass}().defaultValue()"
+            } else {
+                "(if (${conditionClass}().shouldMap(input.$sourceProp)) input.$sourceProp else ${conditionClass}().defaultValue())"
+            }
+        }
+
+        sourceTypeNullable && !targetTypeNullable -> {
+            "input.$sourceProp ?: ${getDefaultValueForProperty(sourceClass = sourceClass, sourceProp)}"
+        }
+
+        else -> "input.$sourceProp"
+    }
+
+
+    /** Helper function to get default value if type is null **/
+    private fun getDefaultValueForProperty(
+        sourceClass: KSClassDeclaration,
+        sourceProp: String
+    ): String {
+        val property = sourceClass.getAllProperties().firstOrNull { it.simpleName.asString() == sourceProp }
+        val typeName = property?.type?.resolve()?.declaration?.qualifiedName?.asString() ?: "kotlin.Any"
+
+        return when {
+            typeName == "kotlin.String" -> "\"\""
+            typeName == "kotlin.Int" -> "0"
+            typeName == "kotlin.Long" -> "0L"
+            typeName == "kotlin.Double" -> "0.0"
+            typeName == "kotlin.Float" -> "0f"
+            typeName == "kotlin.Boolean" -> "false"
+            typeName.startsWith("kotlin.collections.List") -> "emptyList()"
+            typeName.startsWith("kotlin.collections.Set") -> "emptySet()"
+            typeName.startsWith("kotlin.collections.Map") -> "emptyMap()"
+            else -> "${typeName}()"
+        }
+    }
 }

@@ -1,50 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<body>
+# KoMapper – Kotlin Mapping & Koin Integration Made Simple 🚀
 
-<h1>KoMapper – Kotlin Mapping &amp; Koin Integration Made Simple 🚀</h1>
+KoMapper is a Kotlin Symbol Processing (KSP) plugin that **automatically generates type-safe mappers** and optional **Koin DI registrations** for your DTOs, domain models, and more.
 
-<p><strong>KoMapper</strong> is a Kotlin Symbol Processing (KSP) plugin that automatically generates <strong>type-safe mappers</strong> and optional <strong>Koin DI registrations</strong> for your DTOs, domain models, and more.</p>
+With KoMapper, you write *less boilerplate* and keep your mapping logic clean, consistent, and testable.
 
-<p>With <strong>KoMapper</strong>, you write <em>less boilerplate</em> and keep your mapping logic clean, consistent, and testable.</p>
+---
 
-<hr />
+## ✨ Features
 
-<h2>✨ Features</h2>
-<ul>
-  <li><strong>Automatic Mapper Generation</strong><br />Generate mapping classes between your DTOs and domain models with a single annotation.</li>
-  <li><strong>Bidirectional Mapping</strong><br />Supports forward (<code>Dto → Domain</code>) and reverse (<code>Domain → Dto</code>) mapping.</li>
-  <li><strong>Nullability Aware</strong><br />Automatically respects <code>nullable</code> and <code>non-nullable</code> fields with safe handling.</li>
-  <li><strong>Suspend Functions</strong><br />Generate suspendable mapping functions for coroutine-friendly projects.</li>
-  <li><strong>Extension Functions</strong><br />Adds intuitive extension functions for your models (e.g., <code>userDto.toUser()</code> or <code>user.toUserDtoBlocking()</code>).</li>
-  <li><strong>Koin Integration</strong> <em>(optional)</em><br />Automatically generate a <strong>Koin module</strong> registering all your mappers for easy dependency injection.</li>
-  <li><strong>Singleton or Factory Scope</strong><br />Decide via annotation whether mappers should be singletons or factories in Koin.</li>
-</ul>
+- **Automatic Mapper Generation**  
+  Generate mapping classes between your DTOs and domain models with a single annotation.
 
-<hr />
+- **Bidirectional Mapping**  
+  Supports forward (`Dto → Domain`) and reverse (`Domain → Dto`) mapping.
 
-<h2>📦 Installation</h2>
+- **Nullability Aware**  
+  Automatically respects `nullable` and `non-nullable` fields with safe handling.
 
-<pre><code>plugins {
+- **Suspend Functions**  
+  Generate suspendable mapping functions for coroutine-friendly projects.
+
+- **Extension Functions**  
+  Adds intuitive extension functions for your models (e.g., `userDto.toUser()` or `user.toUserDtoBlocking()`).
+
+- **Koin Integration** *(optional)*  
+  Automatically generate a **Koin module** registering all your mappers for easy dependency injection.
+
+- **Singleton or Factory Scope**  
+  Decide via annotation whether mappers should be singletons or factories in Koin.
+
+---
+
+## 📦 Installation
+
+Add the KSP plugin and KoMapper dependencies to your `build.gradle.kts`:
+
+```kotlin
+plugins {
     id("com.google.devtools.ksp") version "X.Y.Z"
 }
 
 dependencies {
     implementation("io.insert-koin:koin-core:3.5.0") // optional for DI
-    ksp("com.yourname:komapper:1.0.0")
+    ksp("com.nemanjap:komapper:1.0.0") // Not yet published on JitPack or MavenCentral
 }
-</code></pre>
+```
 
-<hr />
+---
 
-<h2>🚀 Usage</h2>
+## 🚀 Usage
 
-<h3>1️⃣ Annotate your DTO or model</h3>
+### 1️⃣ Annotate your DTO or model
 
-<pre><code>@MapTo(
+```kotlin
+@MapTo(
     target = User::class,
     suspendable = true,
     oneLineEnabled = true
@@ -54,113 +63,87 @@ data class UserDto(
     val userId: String,
     val userName: String
 )
-</code></pre>
+```
 
-<h3>2️⃣ Generated Mapper</h3>
+### 2️⃣ Generated Mapper
 
-<p>KoMapper generates:</p>
+KoMapper generates:
 
-<pre><code>class UserDtoToUserMapper : SuspendMapper&lt;UserDto, User&gt; {
+```kotlin
+class UserDtoToUserMapper : SuspendMapper<UserDto, User> {
     override suspend fun mappingObject(input: UserDto): User =
         User(id = input.userId, name = input.userName)
 }
-</code></pre>
+```
 
-<p>If reverse mapping is enabled, it also generates:</p>
+If reverse mapping is enabled, it also generates:
 
-<pre><code>class UserToUserDtoMapper : SuspendMapper&lt;User, UserDto&gt; {
+```kotlin
+class UserToUserDtoMapper : SuspendMapper<User, UserDto> {
     override suspend fun mappingObject(input: User): UserDto =
         UserDto(userId = input.id, userName = input.name)
 }
-</code></pre>
+```
 
-<h3>3️⃣ Generated Extension Functions</h3>
+### 3️⃣ Generated Extension Functions
 
-<pre><code>suspend fun UserDto.toUser(): User =
+```kotlin
+suspend fun UserDto.toUser(): User =
     UserDtoToUserMapper().mappingObject(this)
 
 fun UserDto.toUserBlocking(): User =
     runBlocking { toUser() }
-</code></pre>
+```
 
-<h3>4️⃣ Generated Koin Module <em>(optional)</em></h3>
+### 4️⃣ Generated Koin Module *(optional)*
 
-<p>If annotated with <code>@RegisterInKoin</code>, KoMapper creates:</p>
+If annotated with `@RegisterInKoin`, KoMapper creates:
 
-<pre><code>val mapperModule = module {
-    single&lt;SuspendMapper&lt;UserDto, User&gt;&gt; { UserDtoToUserMapper() }
-    single&lt;SuspendMapper&lt;User, UserDto&gt;&gt; { UserToUserDtoMapper() }
+```kotlin
+val mapperModule = module {
+    single<SuspendMapper<UserDto, User>> { UserDtoToUserMapper() }
+    single<SuspendMapper<User, UserDto>> { UserToUserDtoMapper() }
 }
-</code></pre>
+```
 
-<hr />
+---
 
-<h2>⚙️ Configuration</h2>
+## ⚙️ Configuration
 
-<table>
-<thead>
-<tr>
-<th>Annotation</th>
-<th>Parameter</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>@MapTo</code></td>
-<td><code>target</code></td>
-<td>Target class to map to</td>
-</tr>
-<tr>
-<td></td>
-<td><code>suspendable</code></td>
-<td>Generate suspend functions</td>
-</tr>
-<tr>
-<td></td>
-<td><code>oneLineEnabled</code></td>
-<td>Minimize generated code where possible</td>
-</tr>
-<tr>
-<td></td>
-<td><code>propertyMaps</code></td>
-<td>Custom property mappings</td>
-</tr>
-<tr>
-<td></td>
-<td><code>sourceNullable</code></td>
-<td>Allow nullable source type</td>
-</tr>
-<tr>
-<td></td>
-<td><code>targetNullable</code></td>
-<td>Allow nullable target type</td>
-</tr>
-<tr>
-<td><code>@RegisterInKoin</code></td>
-<td><code>isSingleton</code></td>
-<td>Register mapper as singleton or factory</td>
-</tr>
-</tbody>
-</table>
+KoMapper offers fine control via annotations:
 
-<hr />
+| Annotation         | Parameter         | Description                                         |
+|--------------------|-------------------|-----------------------------------------------------|
+| `@MapTo`           | `target`          | Target class to map to                              |
+|                    | `suspendable`     | Generate suspend functions                          |
+|                    | `oneLineEnabled`  | Minimize generated code where possible              |
+|                    | `propertyMaps`    | Custom property mappings                            |
+|                    | `sourceNullable`  | Allow nullable source type                          |
+|                    | `targetNullable`  | Allow nullable target type                          |
+| `@RegisterInKoin`  | `isSingleton`     | Register mapper as singleton or factory             |
+|                    | `createdAtStart`  | Eager Koin definition at startup                    |
+|                    | `named`           | Koin qualifier (string-based)                       |
+|                    | `namedClass`      | Koin qualifier (class-based)                        |
+|                    | `bindInterfaces`  | Bind generated to interfaces                        |
+|                    | `useConstructorDsl`| Use Koin's constructor DSL for registration         |
 
-<h2>🛠️ Why KoMapper?</h2>
+---
 
-<ul>
-  <li>✅ Eliminate repetitive mapping code</li>
-  <li>✅ Consistent mapping rules across your project</li>
-  <li>✅ Easy Koin integration without writing DI modules manually</li>
-  <li>✅ Null-safety built in</li>
-  <li>✅ Coroutine-friendly</li>
-</ul>
+## 🛠️ Why KoMapper?
 
-<hr />
+- ✅ Eliminate repetitive mapping code
+- ✅ Consistent mapping rules across your project
+- ✅ Easy Koin integration without writing DI modules manually
+- ✅ Null-safety built in
+- ✅ Coroutine-friendly
 
-<h2>📄 License</h2>
+---
 
-<p>MIT License – feel free to use in your projects.</p>
+## 📄 License
 
-</body>
-</html>
+MIT License – feel free to use in your projects.
+
+---
+
+> **Note:**  
+> KoMapper is currently **not published** on JitPack or Maven Central. To use it, clone this repository and include it as a local dependency in your build.
