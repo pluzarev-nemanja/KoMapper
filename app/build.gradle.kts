@@ -3,8 +3,8 @@ plugins {
     id("com.google.devtools.ksp") version "2.1.21-2.0.1"
 }
 
-group = "org.example"
-version = "1.0-SNAPSHOT"
+group = "com.nemanjap"
+version = "0.1.0"
 
 repositories {
     mavenCentral()
